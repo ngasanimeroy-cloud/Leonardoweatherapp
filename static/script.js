@@ -1,4 +1,3 @@
-
 (function () {
   'use strict';
 
@@ -10,7 +9,9 @@
   var state = {
     currentTempC: null,
     currentFeelsLikeC: null,
-    unit: 'c'
+    unit: 'c',
+    weatherRequestId: 0,
+    newsRequestId: 0
   };
 
   var els = {};
@@ -24,6 +25,7 @@
   function init() {
     cacheElements();
     bindEvents();
+    loadDefaultDashboard();
     updateDateTime();
     setInterval(updateDateTime, 1000);
   }
@@ -45,9 +47,11 @@
     els.wDescription = document.getElementById('w-description');
     els.wIconWrap = document.getElementById('w-icon-wrap');
     els.wEmoji = document.getElementById('w-emoji');
+
     els.wTempC = document.getElementById('w-temp-c');
     els.btnCelsius = document.getElementById('btn-celsius');
     els.btnFahrenheit = document.getElementById('btn-fahrenheit');
+
     els.wFeels = document.getElementById('w-feels');
     els.wHumidity = document.getElementById('w-humidity');
     els.wWind = document.getElementById('w-wind');
@@ -97,9 +101,7 @@
       button.addEventListener('click', function () {
         var category = button.getAttribute('data-category');
         setCategoryActive(category);
-        if (els.customTopic) {
-          els.customTopic.value = '';
-        }
+        if (els.customTopic) els.customTopic.value = '';
         fetchNews(category, null);
       });
     });
@@ -120,13 +122,16 @@
     }
   }
 
+  function loadDefaultDashboard() {
+    fetchWeather('Tacloban');
+    fetchNews('technology', null);
+  }
+
   function updateDateTime() {
-    if (!els.navDatetime) {
-      return;
-    }
+    if (!els.navDatetime) return;
 
     var now = new Date();
-    var formatted = now.toLocaleString('en-US', {
+    els.navDatetime.textContent = now.toLocaleString('en-US', {
       weekday: 'short',
       year: 'numeric',
       month: 'short',
@@ -135,62 +140,90 @@
       minute: '2-digit',
       second: '2-digit'
     });
+  }
 
-    els.navDatetime.textContent = formatted;
+  // 🌦️ NEW: Weather icon mapper
+  function getWeatherEmoji(description) {
+    if (!description) return '❓';
+
+    var d = description.toLowerCase();
+
+    if (d.includes('clear')) return '☀️';
+    if (d.includes('cloud')) return '☁️';
+    if (d.includes('rain')) return '🌧️';
+    if (d.includes('drizzle')) return '🌦️';
+    if (d.includes('thunder')) return '⛈️';
+    if (d.includes('snow')) return '❄️';
+    if (d.includes('mist') || d.includes('fog') || d.includes('haze')) return '🌫️';
+
+    return '🌡️';
   }
 
   async function fetchWeather(city) {
     var query = city ? city.trim() : '';
+    if (!query) return showWeatherError('Enter a city name before searching.');
 
-    if (!query) {
-      showWeatherError('Enter a city name before searching.');
-      return;
-    }
+    var requestId = ++state.weatherRequestId;
 
     clearWeatherError();
     hideElement(els.weatherResult);
-    hideElement(els.weatherEmpty);
     setButtonLoading(els.weatherSearchBtn, els.weatherSpinner, true);
 
     try {
-      var url = API.weather + '?city=' + encodeURIComponent(query);
-      var response = await fetch(url);
+      var response = await fetch(API.weather + '?city=' + encodeURIComponent(query));
       var data = await parseJson(response);
 
-      if (!response.ok) {
-        throw new Error(data && data.error ? data.error : 'Unable to fetch weather.');
-      }
+      if (requestId !== state.weatherRequestId) return;
 
-      if (!data || data.error) {
-        throw new Error(data && data.error ? data.error : 'Weather response was empty.');
+      if (!response.ok || !data || data.error) {
+        throw new Error((data && data.error) || 'Unable to fetch weather.');
       }
 
       renderWeather(data);
-    } catch (error) {
-      showWeatherError(error.message || 'Unable to fetch weather.');
+    } catch (err) {
+      if (requestId !== state.weatherRequestId) return;
+      showWeatherError(err.message);
     } finally {
       setButtonLoading(els.weatherSearchBtn, els.weatherSpinner, false);
     }
   }
 
-  async function fetchNews(category, topic) {
-    var url = '';
+  function renderWeather(data) {
+    state.currentTempC = Number(data.temp);
+    state.currentFeelsLikeC = Number(data.feels_like);
 
-    if (category) {
-      url = API.news + '?category=' + encodeURIComponent(category);
-    } else {
-      var topicValue = topic ? topic.trim() : '';
+    els.wCity.textContent = data.city || 'Unknown';
+    els.wCountry.textContent = data.country || '';
+    els.wDescription.textContent = data.description || 'No description';
 
-      if (!topicValue) {
-        showNewsError('Enter a custom topic before searching.');
-        return;
-      }
-
-      url = API.news + '?topic=' + encodeURIComponent(topicValue);
+    // 🌟 FIX: icon now actually renders
+    if (els.wEmoji) {
+      els.wEmoji.textContent = getWeatherEmoji(data.description);
     }
 
+    els.wTempC.textContent = formatTemperature(state.currentTempC);
+    els.wFeels.textContent = formatTemperature(state.currentFeelsLikeC);
+    els.wHumidity.textContent = data.humidity != null ? data.humidity + '%' : '--';
+    els.wWind.textContent = data.wind != null ? data.wind + ' m/s' : '--';
+    els.wVisibility.textContent = data.visibility ? (data.visibility / 1000).toFixed(1) + ' km' : '--';
+
+    els.wUpdated.textContent = 'Updated ' + new Date().toLocaleTimeString();
+
+    showElement(els.weatherResult);
+  }
+
+  async function fetchNews(category, topic) {
+    var url = category
+      ? API.news + '?category=' + encodeURIComponent(category)
+      : API.news + '?topic=' + encodeURIComponent((topic || '').trim());
+
+    if (!category && !topic?.trim()) {
+      return showNewsError('Enter a custom topic before searching.');
+    }
+
+    var requestId = ++state.newsRequestId;
+
     clearNewsError();
-    hideElement(els.newsEmpty);
     els.newsFeed.innerHTML = '';
     setNewsLoading(true);
 
@@ -198,100 +231,46 @@
       var response = await fetch(url);
       var data = await parseJson(response);
 
-      if (!response.ok) {
-        throw new Error(data && data.error ? data.error : 'Unable to fetch headlines.');
+      if (requestId !== state.newsRequestId) return;
+
+      if (!response.ok || !data || data.error) {
+        throw new Error((data && data.error) || 'Unable to fetch headlines.');
       }
 
       if (!Array.isArray(data)) {
-        throw new Error(data && data.error ? data.error : 'News response was not a list.');
-      }
-
-      if (data.length === 0) {
-        throw new Error('No headlines found.');
+        throw new Error('News response invalid.');
       }
 
       renderNews(data);
-    } catch (error) {
-      showNewsError(error.message || 'Unable to fetch headlines.');
+    } catch (err) {
+      if (requestId !== state.newsRequestId) return;
+      showNewsError(err.message);
     } finally {
       setNewsLoading(false);
     }
   }
 
-  async function parseJson(response) {
+  async function parseJson(res) {
     try {
-      return await response.json();
-    } catch (error) {
+      return await res.json();
+    } catch {
       return null;
     }
   }
 
-  function renderWeather(data) {
-    var tempC = Number(data.temp);
-    var feelsLikeC = Number(data.feels_like);
-    var condition = getWeatherCondition(data.description, data.icon);
-
-    state.currentTempC = Number.isFinite(tempC) ? tempC : null;
-    state.currentFeelsLikeC = Number.isFinite(feelsLikeC) ? feelsLikeC : null;
-
-    els.wCity.textContent = data.city || 'Unknown city';
-    els.wCountry.textContent = data.country || '';
-    els.wDescription.textContent = condition.label + ': ' + (data.description || condition.text);
-    els.wIconWrap.setAttribute('title', condition.label);
-    els.wIconWrap.setAttribute('aria-label', condition.label);
-    els.wEmoji.innerHTML = getWeatherIcon(condition.key);
-    els.wTempC.textContent = formatTemperature(state.currentTempC);
-    els.wFeels.textContent = formatTemperature(state.currentFeelsLikeC);
-    els.wHumidity.textContent = Number.isFinite(Number(data.humidity)) ? data.humidity + '%' : '--';
-    els.wWind.textContent = formatWind(data.wind);
-    els.wVisibility.textContent = formatVisibility(data.visibility);
-    els.wUpdated.textContent = 'Updated ' + formatDateTime(new Date());
-
-    applyWeatherCondition(condition.key);
-    showElement(els.weatherResult);
-  }
-
-  function renderNews(articles) {
-    if (!els.newsFeed) {
-      return;
-    }
-
+  function renderNews(list) {
     els.newsFeed.innerHTML = '';
 
-    articles.forEach(function (article) {
+    list.forEach(function (a) {
       var card = document.createElement('article');
       card.className = 'news-card';
 
-      var source = document.createElement('div');
-      source.className = 'news-card-source';
-      source.textContent = 'Headline';
+      card.innerHTML =
+        '<h3 class="news-card-title">' +
+        (a.url ? '<a target="_blank" href="' + a.url + '">' + (a.title || '') + '</a>' : (a.title || '')) +
+        '</h3>' +
+        '<p class="news-card-desc">' + (a.description || '') + '</p>';
 
-      var title = document.createElement('h3');
-      title.className = 'news-card-title';
-
-      if (article.url) {
-        var link = document.createElement('a');
-        link.href = article.url;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.textContent = article.title || 'Untitled headline';
-        title.appendChild(link);
-      } else {
-        title.textContent = article.title || 'Untitled headline';
-      }
-
-      var description = document.createElement('p');
-      description.className = 'news-card-desc';
-      description.textContent = article.description || 'No description available.';
-
-      var meta = document.createElement('div');
-      meta.className = 'news-card-meta';
-      meta.textContent = 'Open full story';
-
-      card.appendChild(source);
-      card.appendChild(title);
-      card.appendChild(description);
-      card.appendChild(meta);
       els.newsFeed.appendChild(card);
     });
 
@@ -299,204 +278,63 @@
   }
 
   function setTemperatureUnit(unit) {
-    state.unit = unit === 'f' ? 'f' : 'c';
+    state.unit = unit;
 
-    els.btnCelsius.classList.toggle('active', state.unit === 'c');
-    els.btnFahrenheit.classList.toggle('active', state.unit === 'f');
+    els.btnCelsius.classList.toggle('active', unit === 'c');
+    els.btnFahrenheit.classList.toggle('active', unit === 'f');
 
-    els.wTempC.textContent = formatTemperature(state.currentTempC);
-    els.wFeels.textContent = formatTemperature(state.currentFeelsLikeC);
-  }
-
-  function setCategoryActive(category) {
-    els.tabButtons.forEach(function (button) {
-      var isActive = button.getAttribute('data-category') === category;
-      button.classList.toggle('active', isActive);
-      button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    renderWeather({
+      temp: state.currentTempC,
+      feels_like: state.currentFeelsLikeC
     });
   }
 
-  function applyWeatherCondition(conditionKey) {
-    var conditionClasses = [
-      'weather-sunny',
-      'weather-cloudy',
-      'weather-rain',
-      'weather-storm',
-      'weather-snow',
-      'weather-fog',
-      'weather-default'
-    ];
-    var nextClass = 'weather-' + conditionKey;
-
-    conditionClasses.forEach(function (className) {
-      if (els.weatherResult) {
-        els.weatherResult.classList.remove(className);
-      }
-    });
-
-    if (els.weatherResult) {
-      els.weatherResult.classList.add(nextClass);
-    }
-
-    if (els.weatherSplash) {
-      els.weatherSplash.className = 'weather-splash ' + nextClass;
-    }
+  function formatTemperature(c) {
+    if (!Number.isFinite(c)) return '--';
+    var v = state.unit === 'f' ? (c * 9) / 5 + 32 : c;
+    return v.toFixed(1) + (state.unit === 'f' ? ' F' : ' C');
   }
 
-  function getWeatherCondition(description, icon) {
-    var text = String(description || '').toLowerCase();
-    var code = String(icon || '').toLowerCase();
-
-    if (text.indexOf('clear') !== -1 || code.indexOf('01') === 0) {
-      return { key: 'sunny', label: 'Sunny', text: 'Sunny' };
-    }
-
-    if (text.indexOf('cloud') !== -1 || code.indexOf('02') === 0 || code.indexOf('03') === 0 || code.indexOf('04') === 0) {
-      return { key: 'cloudy', label: 'Cloudy', text: 'Cloudy' };
-    }
-
-    if (text.indexOf('thunder') !== -1 || text.indexOf('storm') !== -1 || code.indexOf('11') === 0) {
-      return { key: 'storm', label: 'Storm', text: 'Storm' };
-    }
-
-    if (text.indexOf('rain') !== -1 || text.indexOf('drizzle') !== -1 || code.indexOf('09') === 0 || code.indexOf('10') === 0) {
-      return { key: 'rain', label: 'Rain', text: 'Rain' };
-    }
-
-    if (text.indexOf('snow') !== -1 || code.indexOf('13') === 0) {
-      return { key: 'snow', label: 'Snow', text: 'Snow' };
-    }
-
-    if (
-      text.indexOf('fog') !== -1 ||
-      text.indexOf('mist') !== -1 ||
-      text.indexOf('haze') !== -1 ||
-      text.indexOf('smoke') !== -1 ||
-      text.indexOf('dust') !== -1 ||
-      text.indexOf('sand') !== -1 ||
-      text.indexOf('ash') !== -1 ||
-      text.indexOf('squall') !== -1 ||
-      text.indexOf('tornado') !== -1 ||
-      code.indexOf('50') === 0
-    ) {
-      return { key: 'fog', label: 'Fog', text: 'Fog' };
-    }
-
-    return { key: 'default', label: 'Weather', text: 'Weather' };
-  }
-
-  function getWeatherIcon(conditionKey) {
-    var icons = {
-      sunny: '<svg class="weather-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="32" cy="32" r="10"/><path d="M32 7v7M32 50v7M7 32h7M50 32h7M14.5 14.5l5 5M44.5 44.5l5 5M49.5 14.5l-5 5M19.5 44.5l-5 5"/></svg>',
-      cloudy: '<svg class="weather-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 48h27c7 0 12-5 12-11 0-6-5-11-11-11h-1C42 18 34 12 25 14c-7 1-12 7-13 14-6 1-10 6-10 12 0 5 4 8 16 8z"/></svg>',
-      rain: '<svg class="weather-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 35h27c7 0 12-5 12-11 0-6-5-11-11-11h-1C42 5 34 0 25 2c-7 1-12 7-13 14-6 1-10 6-10 12 0 4 3 7 16 7z"/><path d="M20 44l-3 8M32 44l-3 8M44 44l-3 8"/></svg>',
-      storm: '<svg class="weather-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 35h27c7 0 12-5 12-11 0-6-5-11-11-11h-1C42 5 34 0 25 2c-7 1-12 7-13 14-6 1-10 6-10 12 0 4 3 7 16 7z"/><path d="M30 38l-8 14h9l-4 10 13-17h-9l5-7z"/></svg>',
-      snow: '<svg class="weather-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M32 8v48M12 18l40 28M52 18L12 46"/><path d="M24 13l8 5 8-5M24 51l8-5 8 5M17 24l8 4 4-8M47 40l8 4 4-8M47 24l-8 4-4-8M17 40l-8 4-4-8"/></svg>',
-      fog: '<svg class="weather-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 24h40M8 34h48M14 44h36M20 54h24"/></svg>',
-      default: '<svg class="weather-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="32" cy="32" r="20"/><path d="M32 16v32M16 32h32"/></svg>'
-    };
-
-    return icons[conditionKey] || icons.default;
-  }
-
-  function formatTemperature(celsius) {
-    if (!Number.isFinite(Number(celsius))) {
-      return '--';
-    }
-
-    var value = state.unit === 'f' ? Number(celsius) * 9 / 5 + 32 : Number(celsius);
-    var unit = state.unit === 'f' ? ' F' : ' C';
-
-    return value.toFixed(1) + unit;
-  }
-
-  function formatWind(speed) {
-    var value = Number(speed);
-
-    if (!Number.isFinite(value)) {
-      return '--';
-    }
-
-    return value.toFixed(1) + ' m/s';
-  }
-
-  function formatVisibility(meters) {
-    var value = Number(meters);
-
-    if (!Number.isFinite(value) || value <= 0) {
-      return '--';
-    }
-
-    return (value / 1000).toFixed(1) + ' km';
-  }
-
-  function formatDateTime(date) {
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+  function setCategoryActive(cat) {
+    els.tabButtons.forEach(function (b) {
+      var active = b.getAttribute('data-category') === cat;
+      b.classList.toggle('active', active);
     });
   }
 
-  function showWeatherError(message) {
-    els.weatherErrorMsg.textContent = message;
+  function setButtonLoading(btn, spin, loading) {
+    if (btn) btn.disabled = loading;
+    if (spin) spin.classList.toggle('hidden', !loading);
+  }
+
+  function setNewsLoading(v) {
+    setButtonLoading(els.newsSearchBtn, els.newsSpinner, v);
+  }
+
+  function showElement(el) {
+    if (el) el.classList.remove('hidden');
+  }
+
+  function hideElement(el) {
+    if (el) el.classList.add('hidden');
+  }
+
+  function showWeatherError(msg) {
+    if (els.weatherErrorMsg) els.weatherErrorMsg.textContent = msg;
     showElement(els.weatherError);
-    hideElement(els.weatherResult);
   }
 
   function clearWeatherError() {
     hideElement(els.weatherError);
-    els.weatherErrorMsg.textContent = '';
   }
 
-  function showNewsError(message) {
-    els.newsErrorMsg.textContent = message;
+  function showNewsError(msg) {
+    if (els.newsErrorMsg) els.newsErrorMsg.textContent = msg;
     showElement(els.newsError);
   }
 
   function clearNewsError() {
     hideElement(els.newsError);
-    els.newsErrorMsg.textContent = '';
   }
 
-  function setButtonLoading(button, spinner, isLoading) {
-    if (button) {
-      button.disabled = isLoading;
-    }
-
-    if (spinner) {
-      toggleHidden(spinner, !isLoading);
-    }
-  }
-
-  function setNewsLoading(isLoading) {
-    setButtonLoading(els.newsSearchBtn, els.newsSpinner, isLoading);
-    toggleHidden(els.newsSkeleton, !isLoading);
-  }
-
-  function showElement(element) {
-    if (element) {
-      element.classList.remove('hidden');
-    }
-  }
-
-  function hideElement(element) {
-    if (element) {
-      element.classList.add('hidden');
-    }
-  }
-
-  function toggleHidden(element, shouldHide) {
-    if (!element) {
-      return;
-    }
-
-    if (shouldHide) {
-      element.classList.add('hidden');
-    } else {
-      element.classList.remove('hidden');
-    }
-  }
-}());
+})();
