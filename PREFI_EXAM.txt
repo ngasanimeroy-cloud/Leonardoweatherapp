@@ -1,0 +1,177 @@
+PREFI_EXAM.md
+
+2026-04-08
+
+PRE-FINAL EXAM
+A Laboratory Exam for Web Services that’s practical, hands-on, and aligned with what students should
+demonstrate in a lab setting. This exam will test their ability to integrate, deploy, and troubleshoot web
+services using APIs and hosting fundamentals.
+
+🧪 Laboratory Exam: Web Services
+Instructions
+Duration: Be able to present your output
+Tools allowed: Django/ Laravel/ Python/Flask, internet access for API documentation, free hosting
+platforms (Heroku, Firebase, or PythonAnywhere).
+Deliverables: Working code + short documentation (README).
+
+Part A: API Integration (40 points)
+Task:
+1. Create a Flask(Laravel/Django) app with a form that accepts a city name.
+2. Use the OpenWeatherMap API to fetch and display:
+Current temperature
+Weather condition
+Country code of the city
+Bonus (5 points): Add error handling for invalid city names.
+
+Part B: Multi-Service Dashboard (40 points)
+Task:
+1. Extend the app to include a second widget:
+Use the NewsAPI to fetch the top 3 headlines related to “Technology.”
+Display them alongside the weather data.
+Bonus (5 points): Allow the user to enter a topic (e.g., “Sports”) and fetch headlines dynamically.
+
+Part C: Web Hosting Deployment (20 points)
+Task:
+1. Deploy your app on a free hosting platform (Heroku, PythonAnywhere, or Firebase Hosting).
+2. Submit the live URL and a screenshot of the deployed app.
+1/4
+
+PREFI_EXAM.md
+
+2026-04-08
+
+Grading Rubric
+Section
+
+Points
+
+Criteria
+
+Part A
+
+40
+
+Correct API integration, clean output, error handling
+
+Part B
+
+40
+
+Multi-service integration, dynamic queries, clear layout
+
+Part C
+
+20
+
+Successful deployment, accessible URL
+
+Bonus
+
++10
+
+Extra features, creativity
+
+Expected Learning Outcomes
+Understand how to consume REST APIs in Flask/Laravel/Django.
+Practice combining multiple web services into one app.
+Gain experience deploying apps to free hosting platforms.
+Learn troubleshooting skills for API errors and hosting issues.
+
+🧪 Sample Solution Outline: Web Services Lab Exam
+(Using Flask)
+Part A: API Integration (Weather)
+Expected Steps:
+1. Import Flask and requests.
+2. Create a route /weather that accepts a query parameter (city) via request.args.get().
+3. Call OpenWeatherMap API:
+
+url = f"http://api.openweathermap.org/data/2.5/weather?q=
+{city}&appid=API_KEY&units=metric"
+response = requests.get(url).json()
+
+4. Extract and display:
+response["main"]["temp"]
+response["weather"][0]["description"]
+response["sys"]["country"]
+5. Handle errors (e.g., invalid city → show error message).
+✅ Checkpoints for grading: API call works, correct fields displayed, error handling present.
+
+Part B: Multi-Service Dashboard (Weather + News)
+Expected Steps:
+2/4
+
+PREFI_EXAM.md
+
+2026-04-08
+
+1. Extend Flask app with a /dashboard route.
+2. Accept two query parameters: city and topic.
+3. Weather API integration (reuse Part A).
+4. NewsAPI integration:
+
+url = f"https://newsapi.org/v2/everything?q={topic}&apiKey=NEWS_API_KEY"
+response = requests.get(url).json()
+
+5. Extract top 3 headlines: article["title"], article["description"], article["url"].
+6. Display weather + news side by side in HTML.
+✅ Checkpoints for grading: Both APIs integrated, dynamic topic input, clean output.
+
+Part C: Deployment
+Expected Steps:
+1. Prepare requirements.txt (Flask, requests).
+2. Add Procfile (for Heroku) or configure PythonAnywhere.
+3. Deploy app → provide live URL.
+4. Verify app runs correctly online.
+✅ Checkpoints for grading: App accessible via URL, APIs still functional, screenshot provided.
+
+Bonus Features
+Default values if no query provided (e.g., city = “Tacloban”, topic = “Technology”).
+Error handling for missing/invalid API keys.
+Simple CSS styling for dashboard.
+
+Grading Rubric (Answer Key)
+Section
+
+Expected Deliverable
+
+Points
+
+Part A
+
+Weather API integrated, correct output
+
+40
+
+Part B
+
+NewsAPI integrated, dashboard functional
+
+40
+
+Part C
+
+Deployed app accessible online
+
+20
+
+Bonus
+
+Defaults, styling, extra features
+
++10
+
+Outcome
+Students should demonstrate:
+Ability to consume REST APIs.
+3/4
+
+PREFI_EXAM.md
+
+2026-04-08
+
+Combining multiple services in one app.
+Deploying a working project to a free hosting platform.
+
+4/4
+
+

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Weather & Headlines</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts: DM Sans -->
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- Google Material Icons -->
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+  <!-- Local Stylesheet -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+
+<body>
+
+  <!-- NAVBAR -->
+  <header class="navbar">
+    <div class="navbar-inner">
+      <a href="#" class="logo">
+        <span class="logo-icon material-icons">cloud_queue</span>
+        <span class="logo-text">WebService</span>
+      </a>
+      <div class="nav-meta">
+        <span id="nav-datetime" class="nav-datetime"></span>
+        <span class="nav-badge">Lab Exam - Web Services</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- HERO STRIP -->
+  <section class="hero-strip">
+    <div class="hero-inner">
+      <h1 class="hero-title">Live Weather <span class="hero-amp">&</span> Headlines</h1>
+      <p class="hero-sub">Real-time data from OpenWeatherMap & NewsAPI -</p>
+    </div>
+  </section>
+
+  <!-- MAIN DASHBOARD GRID -->
+  <main class="dashboard">
+
+    <section class="widget weather-widget" aria-label="Weather Widget">
+
+      <div class="widget-header">
+        <div class="widget-title-row">
+          <span class="widget-icon material-icons">wb_sunny</span>
+          <h2 class="widget-title">Weather</h2>
+        </div>
+        <span class="widget-badge">OpenWeatherMap</span>
+      </div>
+
+      <!-- Search -->
+      <div class="search-block">
+        <label for="city-input" class="search-label">Search city</label>
+        <div class="search-row">
+          <div class="input-wrapper">
+            <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x1="16.65" y2="16.65"/>
+            </svg>
+            <input
+              type="text"
+              id="city-input"
+              class="search-input"
+              placeholder="e.g. Manila, Tokyo, London..."
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </div>
+          <button id="weather-search-btn" class="btn-primary" type="button">
+            <span class="btn-label">Search</span>
+            <span class="btn-spinner hidden" id="weather-spinner">
+              <svg class="spin-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div id="weather-error" class="error-banner hidden" role="alert">
+        <span class="error-icon material-icons">error</span>
+        <span id="weather-error-msg">City not found. Please check the spelling.</span>
+      </div>
+
+      <!-- Result -->
+      <div id="weather-result" class="weather-result hidden">
+        <div id="weather-splash" class="weather-splash weather-default" aria-hidden="true"></div>
+        <div class="weather-location">
+          <div class="weather-city-row">
+            <h3 id="w-city" class="weather-city">--</h3>
+            <span id="w-country" class="country-pill">--</span>
+          </div>
+          <p id="w-description" class="weather-description">--</p>
+        </div>
+
+        <div class="temp-hero">
+          <div id="w-icon-wrap" class="weather-emoji-wrap">
+            <span id="w-emoji" class="weather-emoji material-icons">help</span>
+          </div>
+          <div class="temp-numbers">
+            <span id="w-temp-c" class="temp-main">--</span>
+            <div class="temp-toggle-row">
+              <button id="btn-celsius" class="temp-unit active" data-unit="c">A C</button>
+              <span class="temp-divider">/</span>
+              <button id="btn-fahrenheit" class="temp-unit" data-unit="f">A F</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span class="stat-label">Feels Like</span>
+            <span id="w-feels" class="stat-value">--</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Humidity</span>
+            <span id="w-humidity" class="stat-value">--</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Wind Speed</span>
+            <span id="w-wind" class="stat-value">--</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Visibility</span>
+            <span id="w-visibility" class="stat-value">--</span>
+          </div>
+        </div>
+
+        <p id="w-updated" class="updated-stamp">--</p>
+      </div>
+
+      <!-- Empty State -->
+      <div id="weather-empty" class="empty-state">
+        <span class="empty-illustration material-icons">location_city</span>
+        <p class="empty-text">Enter a city name above to get live weather data.</p>
+      </div>
+
+    </section>
+
+    <!-- COLUMN 2 - NEWS WIDGET -->
+    <section class="widget news-widget" aria-label="News Widget">
+
+      <div class="widget-header">
+        <div class="widget-title-row">
+          <span class="widget-icon material-icons">newspaper</span>
+          <h2 class="widget-title">Headlines</h2>
+        </div>
+        <span class="widget-badge">NewsAPI</span>
+      </div>
+
+      <!-- Controls -->
+      <div class="news-controls">
+        <div class="category-tabs" role="tablist" aria-label="News categories">
+          <button class="tab-btn active" data-category="technology" role="tab" aria-selected="true">Technology</button>
+          <button class="tab-btn" data-category="business"    role="tab" aria-selected="false">Business</button>
+          <button class="tab-btn" data-category="science"     role="tab" aria-selected="false">Science</button>
+          <button class="tab-btn" data-category="health"      role="tab" aria-selected="false">Health</button>
+        </div>
+
+        <div class="custom-topic-row">
+          <div class="input-wrapper">
+            <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+            <input
+              type="text"
+              id="custom-topic"
+              class="search-input"
+              placeholder="Custom topic e.g. Sports, AI, Climate"
+              autocomplete="off"
+            />
+          </div>
+          <button id="news-search-btn" class="btn-primary" type="button">
+            <span class="btn-label">Search</span>
+            <span class="btn-spinner hidden" id="news-spinner">
+              <svg class="spin-svg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div id="news-error" class="error-banner hidden" role="alert">
+        <span class="error-icon material-icons">error</span>
+        <span id="news-error-msg">Failed to fetch headlines. Please try again.</span>
+      </div>
+
+      <!-- Feed -->
+      <div id="news-feed" class="news-feed">
+        <!-- Articles injected by app.js -->
+      </div>
+
+      <!-- Skeleton -->
+      <div id="news-skeleton" class="news-skeleton hidden">
+        <div class="skeleton-card">
+          <div class="skel skel-tag"></div>
+          <div class="skel skel-title"></div>
+          <div class="skel skel-line"></div>
+          <div class="skel skel-line short"></div>
+        </div>
+        <div class="skeleton-card">
+          <div class="skel skel-tag"></div>
+          <div class="skel skel-title"></div>
+          <div class="skel skel-line"></div>
+          <div class="skel skel-line short"></div>
+        </div>
+        <div class="skeleton-card">
+          <div class="skeleton-card">
+            <div class="skel skel-tag"></div>
+            <div class="skel skel-title"></div>
+            <div class="skel skel-line"></div>
+            <div class="skel skel-line short"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div id="news-empty" class="empty-state">
+        <span class="empty-illustration material-icons">rss_feed</span>
+        <p class="empty-text">Select a category or enter a topic to load headlines.</p>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="app-footer">
+    <span> - Laboratory Exam: Web Services - 2026</span>
+    <span class="footer-sep">|</span>
+    <span>OpenWeatherMap API & NewsAPI</span>
+  </footer>
+
+  <!-- Flowbite JS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.js"></script>
+
+  <!-- App Logic -->
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+
+</body>
+</html>
